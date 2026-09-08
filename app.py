@@ -66,7 +66,7 @@ def chat_endpoint():
     session_history = data.get("history", [])
 
     if not user_message:
-        return jsonify({"error": "Il parametro 'message' è obbligatorio"}}, 400
+        return jsonify({"error": "Il parametro 'message' è obbligatorio"}), 400
 
     retrieved_context = vector_search(user_message)
 
