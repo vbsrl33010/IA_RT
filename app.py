@@ -11,7 +11,7 @@ client = OpenAI(
     api_key=os.environ.get("GROQ_API_KEY")
 )
 
-MODEL_NAME = "openai/gpt-oss-120b"
+MODEL_NAME = "llama-3.1-70b-versatile"
 
 def vector_search(query: str) -> str:
     """Legge dinamicamente i manuali di testo presenti nella cartella knowledge_base"""
