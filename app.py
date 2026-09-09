@@ -2,6 +2,7 @@ import os
 import json
 from flask import Flask, request, jsonify
 from openai import OpenAI
+from llama_index.core import SimpleDirectoryReader, VectorStoreIndex
 
 app = Flask(__name__)
 
@@ -13,23 +14,36 @@ client = OpenAI(
 
 MODEL_NAME = "openai/gpt-oss-120b"
 
+# --- INIZIALIZZAZIONE RAG (LlamaIndex) ---
+KB_PATH = os.path.join(os.path.dirname(__file__), "knowledge_base")
+if not os.path.exists(KB_PATH):
+    os.makedirs(KB_PATH)
+
+print("🔍 Indicizzazione dei manuali in corso...")
+retriever = None
+try:
+    # Legge tutti i file (TXT, PDF, Markdown) presenti nella cartella knowledge_base
+    documents = SimpleDirectoryReader(KB_PATH, recursive=True).load_data()
+    if documents:
+        index = VectorStoreIndex.from_documents(documents)
+        # Configura il retriever per prendere i 3 frammenti più pertinenti alla domanda
+        retriever = index.as_retriever(similarity_top_k=3)
+        print(f"Trovati e indicizzati {len(documents)} documenti con successo!")
+    else:
+        print("Nessun documento trovato nella cartella knowledge_base.")
+except Exception as e:
+    print(f"⚠️ Impossibile indicizzare i manuali: {e}")
+
 def vector_search(query: str) -> str:
-    """Legge dinamicamente i manuali di testo presenti nella cartella knowledge_base"""
-    kb_path = os.path.join(os.path.dirname(__file__), "knowledge_base")
-    context_text = ""
-
-    if os.path.exists(kb_path):
-        for filename in os.listdir(kb_path):
-            if filename.endswith(".txt"):
-                file_path = os.path.join(kb_path, filename)
-                with open(file_path, "r", encoding="utf-8") as f:
-                    content = f.read()
-                    context_text += f"\n--- {filename} ---\n{content}\n"
-
-    if not context_text:
-        return "Nessun manuale trovato nella base di conoscenza."
-
-    return context_text
+    """Esegue una ricerca semantica mirata nei manuali tramite LlamaIndex"""
+    if not retriever:
+        return "Nessun indice disponibile nella base di conoscenza."
+    try:
+        nodes = retriever.retrieve(query)
+        context_text = "\n\n".join([f"--- Estratto ---\n{node.get_content()}" for node in nodes])
+        return context_text if context_text else "Nessuna informazione pertinente trovata nei manuali."
+    except Exception as e:
+        return f"Errore durante la ricerca nel RAG: {e}"
 
 def create_crm_ticket(ragione_sociale: str, partita_iva: str, matricola_rt: str, descrizione_guasto: str, priorita: str) -> dict:
     return {

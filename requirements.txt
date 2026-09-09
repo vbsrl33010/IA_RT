@@ -3,3 +3,6 @@ openai
 requests
 python-dotenv
 gunicorn
+streamlit
+requests
+llama-index-core
