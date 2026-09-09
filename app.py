@@ -11,7 +11,7 @@ client = OpenAI(
     api_key=os.environ.get("GROQ_API_KEY")
 )
 
-MODEL_NAME = "llama-3.1-70b-versatile"
+MODEL_NAME = "llama-3.3-70b-versatile"
 
 KB_PATH = os.path.join(os.path.dirname(__file__), "knowledge_base")
 if not os.path.exists(KB_PATH):
