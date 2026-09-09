@@ -95,55 +95,61 @@ tools = [
 
 @app.route("/api/v1/chat", methods=["POST"])
 def chat_endpoint():
-    data = request.json or {}
-    user_message = data.get("message", "")
-    session_history = data.get("history", [])
+    try:
+        data = request.json or {}
+        user_message = data.get("message", "")
+        session_history = data.get("history", [])
 
-    if not user_message:
-        return jsonify({"error": "Il parametro 'message' è obbligatorio"}), 400
+        if not user_message:
+            return jsonify({"error": "Il parametro 'message' è obbligatorio"}), 400
 
-    retrieved_context = vector_search(user_message)
+        retrieved_context = vector_search(user_message)
 
-    system_prompt = (
-        "Sei l'assistente virtuale per il supporto tecnico sui registratori di cassa e POS.\n"
-        "Fornisci assistenza di I livello aiutando il cliente a risolvere i problemi più semplici.\n\n"
-        f"--- CONTESTO TECNICO DAI MANUALI ---\n{retrieved_context}\n-------------------------------------\n\n"
-        "REGOLE:\n1. Se è una procedura semplice, spiegalo passo-passo basandoti sul contesto.\n"
-        "2. Se è un guasto bloccante o esaurimento DGFE, chiedi i dati necessari e usa la funzione create_crm_ticket."
-    )
+        system_prompt = (
+            "Sei l'assistente virtuale per il supporto tecnico sui registratori di cassa e POS.\n"
+            "Fornisci assistenza di I livello aiutando il cliente a risolvere i problemi più semplici.\n\n"
+            f"--- CONTESTO TECNICO DAI MANUALI ---\n{retrieved_context}\n-------------------------------------\n\n"
+            "REGOLE:\n1. Se è una procedura semplice, spiegalo passo-passo basandoti sul contesto.\n"
+            "2. Se è un guasto bloccante o esaurimento DGFE, chiedi i dati necessari e usa la funzione create_crm_ticket."
+        )
 
-    messages = [{"role": "system", "content": system_prompt}] + session_history + [{"role": "user", "content": user_message}]
+        messages = [{"role": "system", "content": system_prompt}] + session_history + [{"role": "user", "content": user_message}]
 
-    response = client.chat.completions.create(
-        model=MODEL_NAME,
-        messages=messages,
-        tools=tools,
-        tool_choice="auto"
-    )
+        response = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=messages,
+            tools=tools,
+            tool_choice="auto"
+        )
 
-    response_message = response.choices[0].message
+        response_message = response.choices[0].message
 
-    if response_message.tool_calls:
-        for tool_call in response_message.tool_calls:
-            if tool_call.function.name == "create_crm_ticket":
-                args = json.loads(tool_call.function.arguments)
-                ticket_res = create_crm_ticket(
-                    ragione_sociale=args.get("ragione_sociale"),
-                    partita_iva=args.get("partita_iva", "N/D"),
-                    matricola_rt=args.get("matricola_rt"),
-                    descrizione_guasto=args.get("descrizione_guasto"),
-                    priorita=args.get("priorita", "MEDIA")
-                )
-                return jsonify({
-                    "type": "ticket_escalation",
-                    "reply": f"Richiesta inoltrata al reparto tecnico. Codice Ticket: {ticket_res.get('ticket_id')}.",
-                    "ticket_data": ticket_res
-                })
+        if response_message.tool_calls:
+            for tool_call in response_message.tool_calls:
+                if tool_call.function.name == "create_crm_ticket":
+                    args = json.loads(tool_call.function.arguments)
+                    ticket_res = create_crm_ticket(
+                        ragione_sociale=args.get("ragione_sociale"),
+                        partita_iva=args.get("partita_iva", "N/D"),
+                        matricola_rt=args.get("matricola_rt"),
+                        descrizione_guasto=args.get("descrizione_guasto"),
+                        priorita=args.get("priorita", "MEDIA")
+                    )
+                    return jsonify({
+                        "type": "ticket_escalation",
+                        "reply": f"Richiesta inoltrata al reparto tecnico. Codice Ticket: {ticket_res.get('ticket_id')}.",
+                        "ticket_data": ticket_res
+                    })
 
-    return jsonify({
-        "type": "standard_response",
-        "reply": response_message.content
-    })
+        return jsonify({
+            "type": "standard_response",
+            "reply": response_message.content
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5001, debug=True)
