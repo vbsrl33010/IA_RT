@@ -1,0 +1,31 @@
+# .streamlit/config.toml
+
+[theme]
+# Colori principali per pulsanti, link e accenti
+primaryColor = "#1f77b4"
+
+# Colore di sfondo dell'intera pagina (usato se l'immagine non carica)
+backgroundColor = "#f0f2f6"
+
+# Colore di sfondo del blocco principale della chat
+secondaryBackgroundColor = "#ffffff"
+
+# Colore del testo principale
+textColor = "#31333F"
+
+# Stile del font (sans serif è più moderno)
+font = "sans serif"
+
+[server]
+# Impostazione per il deploy su Streamlit Cloud (opzionale ma consigliata)
+headless = true
+
+[browser]
+# Codice CSS iniettato per impostare l'immagine di sfondo
+# Assicurati di sostituire l'URL qui sotto con il link diretto alla tua immagine.
+gatherUsageStats = false
+
+# --- INIEZIONE STILE CUSTOM ---
+# ATTENZIONE: Il blocco markdown sotto è l'hack per lo sfondo
+[client]
+showSidebarNavigation = true
