@@ -10,29 +10,24 @@ client = OpenAI(
     api_key=os.environ.get("GROQ_API_KEY")
 )
 
-# Selezione sicura escludendo i modelli di classificazione/guardia
+# Selezione sicura focalizzata esclusivamente sui modelli Llama standard
 try:
     models_response = client.models.list()
     available_models = [m.id for m in models_response.data]
     print("📌 Modelli disponibili su Groq:", available_models)
     
-    # Filtriamo via i modelli non idonei al chat completion multiplo
-    chat_models = [
+    # Filtra solo i modelli Llama validi ed evita restrizioni di termini o terze parti
+    llama_models = [
         m for m in available_models 
-        if not any(x in m.lower() for x in ["guard", "embed", "whisper", "audio", "classification"])
+        if "llama" in m.lower() and not any(x in m.lower() for x in ["guard", "embed", "canopylabs", "audio"])
     ]
     
-    # Cerca un modello standard di chat
-    preferred = [m for m in chat_models if "llama" in m.lower() or "versatile" in m.lower() or "mixtral" in m.lower() or "gemma" in m.lower()]
-    
-    if preferred:
-        MODEL_NAME = preferred[0]
-    elif chat_models:
-        MODEL_NAME = chat_models[0]
+    if llama_models:
+        MODEL_NAME = llama_models[0]
     else:
-        MODEL_NAME = available_models[0]
+        MODEL_NAME = "llama3-8b-8192"
         
-    print(f"✅ Modello chat selezionato: {MODEL_NAME}")
+    print(f"✅ Modello Llama selezionato: {MODEL_NAME}")
 except Exception as e:
     print(f"⚠️ Errore nel recupero modelli: {e}")
     MODEL_NAME = "llama3-8b-8192"
