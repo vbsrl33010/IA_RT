@@ -8,34 +8,62 @@ from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 app = Flask(__name__)
 
 # Configurazione client Groq per il modello di chat
+# NOTA: Il model name "openai/gpt-oss-120b" non è valido per Groq. 
+# Utilizziamo un modello standard supportato da Groq come "llama-3.3-70b-versatile".
 client = OpenAI(
     base_url="https://api.groq.com/openai/v1",
     api_key=os.environ.get("GROQ_API_KEY")
 )
 
-MODEL_NAME = "openai/gpt-oss-120b"
+MODEL_NAME = "llama-3.3-70b-versatile"
 
-# Configurazione embedding locale leggera (ottimizzata per i limiti di RAM di Render)
+# Configurazione embedding leggera
 Settings.embed_model = HuggingFaceEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2")
 Settings.llm = None 
 
-# --- INIZIALIZZAZIONE RAG ---
 KB_PATH = os.path.join(os.path.dirname(__file__), "knowledge_base")
 if not os.path.exists(KB_PATH):
     os.makedirs(KB_PATH)
 
-print("🔍 Indicizzazione dei manuali in corso...")
-retriever = None
-try:
-    documents = SimpleDirectoryReader(KB_PATH, recursive=True).load_data()
-    if documents:
-        index = VectorStoreIndex.from_documents(documents)
-        retriever = index.as_retriever(similarity_top_k=3)
-        print(f"Trovati e indicizzati {len(documents)} documenti con successo!")
-    else:
-        print("Nessun documento trovato nella cartella knowledge_base.")
-except Exception as e:
-    print(f"⚠️ Impossibile indicizzare i manuali: {e}")
+# Variabili globali per l'indice
+_index = None
+_retriever = None
+
+def get_retriever():
+    """Inizializza l'indice solo alla prima richiesta utile (Lazy Loading)"""
+    global _index, _retriever
+    if _retriever is not None:
+        return _retriever
+        
+    print("🔍 Indicizzazione dei manuali in corso (prima richiesta)...")
+    try:
+        documents = SimpleDirectoryReader(KB_PATH, recursive=True).load_data()
+        if documents:
+            _index = VectorStoreIndex.from_documents(documents)
+            _retriever = _index.as_retriever(similarity_top_k=3)
+            print(f"Trovati e indicizzati {len(documents)} documenti con successo!")
+        else:
+            print("Nessun documento trovato nella cartella knowledge_base.")
+    except Exception as e:
+        print(f"⚠️ Impossibile indicizzare i manuali: {e}")
+    return _retriever
+
+def vector_search(query: str) -> str:
+    """Esegue una ricerca semantica mirata nei manuali tramite LlamaIndex"""
+    current_retriever = get_retriever()
+    if not current_retriever:
+        return "Nessun indice disponibile nella base di conoscenza."
+    try:
+        nodes = current_retriever.retrieve(query)
+        print("--- CHUNK TROVATI DAL RAG ---")
+        for i, node in enumerate(nodes):
+            print(f"Risultato {i+1}: {node.get_content()[:300]}...")
+        print("-----------------------------")
+        
+        context_text = "\n\n".join([f"--- Estratto ---\n{node.get_content()}" for node in nodes])
+        return context_text if context_text else "Nessuna informazione pertinente trovata nei manuali."
+    except Exception as e:
+        return f"Errore durante la ricerca nel RAG: {e}"
 
 def create_crm_ticket(ragione_sociale: str, partita_iva: str, matricola_rt: str, descrizione_guasto: str, priorita: str) -> dict:
     return {
