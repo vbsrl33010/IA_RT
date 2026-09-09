@@ -23,7 +23,7 @@ print("🔍 Indicizzazione dei manuali in corso...")
 retriever = None
 try:
     # Legge tutti i file (TXT, PDF, Markdown) presenti nella cartella knowledge_base
-    documents = SimpleDirectoryReader(KB_PATH).load_data()
+    documents = SimpleDirectoryReader(KB_PATH, recursive=True).load_data()
     if documents:
         index = VectorStoreIndex.from_documents(documents)
         # Configura il retriever per prendere i 3 frammenti più pertinenti alla domanda
