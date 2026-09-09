@@ -121,11 +121,10 @@ def chat_endpoint():
 
         messages = [{"role": "system", "content": system_prompt}] + session_history + [{"role": "user", "content": user_message}]
 
-        response = client.chat.completions.create(
+          response = client.chat.completions.create(
             model=MODEL_NAME,
             messages=messages,
-            tools=tools,
-            tool_choice="auto"
+            temperature=0.7
         )
 
         response_message = response.choices[0].message
