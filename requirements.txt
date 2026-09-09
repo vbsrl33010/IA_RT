@@ -6,4 +6,5 @@ gunicorn
 streamlit
 requests
 llama-index-core
+llama-index-embeddings-openai
 pypdf
