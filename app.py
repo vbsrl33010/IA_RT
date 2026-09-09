@@ -11,7 +11,19 @@ client = OpenAI(
     api_key=os.environ.get("GROQ_API_KEY")
 )
 
-MODEL_NAME = "llama-3.1-8b-instant"
+# Tentiamo di recuperare automaticamente un modello valido disponibile per questa chiave API
+try:
+    models_response = client.models.list()
+    available_models = [m.id for m in models_response.data]
+    print("📌 Modelli disponibili su Groq:", available_models)
+    
+    # Seleziona il primo modello Llama disponibile o il primo in assoluto
+    llama_models = [m for m in available_models if "llama" in m.lower()]
+    MODEL_NAME = llama_models[0] if llama_models else available_models[0]
+    print(f"✅ Modello selezionato automaticamente: {MODEL_NAME}")
+except Exception as e:
+    print(f"⚠️ Impossibile elencare i modelli, uso il fallback: {e}")
+    MODEL_NAME = "gemma2-9b-it"
 
 KB_PATH = os.path.join(os.path.dirname(__file__), "knowledge_base")
 if not os.path.exists(KB_PATH):
