@@ -2,24 +2,17 @@ import os
 import json
 from flask import Flask, request, jsonify
 from openai import OpenAI
-from llama_index.core import Settings, SimpleDirectoryReader, VectorStoreIndex
-from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+from llama_index.core import SimpleDirectoryReader, VectorStoreIndex
 
 app = Flask(__name__)
 
 # Configurazione client Groq per il modello di chat
-# NOTA: Il model name "openai/gpt-oss-120b" non è valido per Groq. 
-# Utilizziamo un modello standard supportato da Groq come "llama-3.3-70b-versatile".
 client = OpenAI(
     base_url="https://api.groq.com/openai/v1",
     api_key=os.environ.get("GROQ_API_KEY")
 )
 
 MODEL_NAME = "llama-3.3-70b-versatile"
-
-# Configurazione embedding leggera
-Settings.embed_model = HuggingFaceEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2")
-Settings.llm = None 
 
 KB_PATH = os.path.join(os.path.dirname(__file__), "knowledge_base")
 if not os.path.exists(KB_PATH):
@@ -30,13 +23,20 @@ _index = None
 _retriever = None
 
 def get_retriever():
-    """Inizializza l'indice solo alla prima richiesta utile (Lazy Loading)"""
+    """Inizializza il modello di embedding e l'indice solo alla prima richiesta (Lazy Loading totale)"""
     global _index, _retriever
     if _retriever is not None:
         return _retriever
         
-    print("🔍 Indicizzazione dei manuali in corso (prima richiesta)...")
+    print("🔍 Caricamento modello embedding e indicizzazione manuali...")
     try:
+        from llama_index.core import Settings
+        from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+        
+        # Configurazione leggera eseguita solo al bisogno
+        Settings.embed_model = HuggingFaceEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2")
+        Settings.llm = None 
+
         documents = SimpleDirectoryReader(KB_PATH, recursive=True).load_data()
         if documents:
             _index = VectorStoreIndex.from_documents(documents)
@@ -45,7 +45,7 @@ def get_retriever():
         else:
             print("Nessun documento trovato nella cartella knowledge_base.")
     except Exception as e:
-        print(f"⚠️ Impossibile indicizzare i manuali: {e}")
+        print(f"⚠️ Impossibile inizializzare il RAG: {e}")
     return _retriever
 
 def vector_search(query: str) -> str:
