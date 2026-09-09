@@ -2,11 +2,12 @@ import os
 import json
 from flask import Flask, request, jsonify
 from openai import OpenAI
-from llama_index.core import SimpleDirectoryReader, VectorStoreIndex
+from llama_index.core import Settings, SimpleDirectoryReader, VectorStoreIndex
+from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 
 app = Flask(__name__)
 
-# Configurazione del client OpenAI per puntare a Groq tramite la variabile d'ambiente
+# Configurazione del client OpenAI per puntare a Groq
 client = OpenAI(
     base_url="https://api.groq.com/openai/v1",
     api_key=os.environ.get("GROQ_API_KEY")
@@ -14,19 +15,20 @@ client = OpenAI(
 
 MODEL_NAME = "openai/gpt-oss-120b"
 
+# --- CONFIGURAZIONE EMBEDDING LOCALE (Nessuna chiave OpenAI richiesta) ---
+Settings.embed_model = HuggingFaceEmbedding(model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
+
 # --- INIZIALIZZAZIONE RAG (LlamaIndex) ---
 KB_PATH = os.path.join(os.path.dirname(__file__), "knowledge_base")
 if not os.path.exists(KB_PATH):
     os.makedirs(KB_PATH)
 
-print("🔍 Indicizzazione dei manuali in corso...")
+print("🔍 Indicizzazione dei manuali in corso con modello locale...")
 retriever = None
 try:
-    # Legge tutti i file (TXT, PDF, Markdown) presenti nella cartella knowledge_base
     documents = SimpleDirectoryReader(KB_PATH, recursive=True).load_data()
     if documents:
         index = VectorStoreIndex.from_documents(documents)
-        # Configura il retriever per prendere i 3 frammenti più pertinenti alla domanda
         retriever = index.as_retriever(similarity_top_k=3)
         print(f"Trovati e indicizzati {len(documents)} documenti con successo!")
     else:

@@ -7,4 +7,5 @@ streamlit
 requests
 llama-index-core
 llama-index-embeddings-openai
+sentence-transformers
 pypdf
