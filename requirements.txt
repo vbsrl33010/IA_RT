@@ -3,3 +3,5 @@ openai
 requests
 python-dotenv
 gunicorn
+streamlit
+requests
