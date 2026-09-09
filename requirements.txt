@@ -1,11 +1,7 @@
 flask
 openai
 requests
-python-dotenv
-gunicorn
-streamlit
-requests
 llama-index-core
-llama-index-embeddings-openai
+llama-index-embeddings-huggingface
 sentence-transformers
 pypdf
