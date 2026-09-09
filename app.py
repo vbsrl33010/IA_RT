@@ -12,18 +12,24 @@ client = OpenAI(
 )
 
 # Tentiamo di recuperare automaticamente un modello valido disponibile per questa chiave API
+# Selezione automatica del modello compatibile con il tool calling
 try:
     models_response = client.models.list()
     available_models = [m.id for m in models_response.data]
     print("📌 Modelli disponibili su Groq:", available_models)
     
-    # Seleziona il primo modello Llama disponibile o il primo in assoluto
-    llama_models = [m for m in available_models if "llama" in m.lower()]
-    MODEL_NAME = llama_models[0] if llama_models else available_models[0]
-    print(f"✅ Modello selezionato automaticamente: {MODEL_NAME}")
+    # Filtra per modelli che supportano i tool (es. contenenti 'versatile' o 'llama')
+    versatile_models = [m for m in available_models if "versatile" in m.lower()]
+    if versatile_models:
+        MODEL_NAME = versatile_models[0]
+    else:
+        llama_models = [m for m in available_models if "llama" in m.lower()]
+        MODEL_NAME = llama_models[0] if llama_models else available_models[0]
+        
+    print(f"✅ Modello selezionato: {MODEL_NAME}")
 except Exception as e:
-    print(f"⚠️ Impossibile elencare i modelli, uso il fallback: {e}")
-    MODEL_NAME = "gemma2-9b-it"
+    print(f"⚠️ Errore nel recupero dei modelli: {e}")
+    MODEL_NAME = "llama-3.3-70b-versatile"
 
 KB_PATH = os.path.join(os.path.dirname(__file__), "knowledge_base")
 if not os.path.exists(KB_PATH):
