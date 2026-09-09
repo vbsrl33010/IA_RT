@@ -5,24 +5,37 @@ from openai import OpenAI
 
 app = Flask(__name__)
 
-# Configurazione client Groq per il modello di chat
 client = OpenAI(
     base_url="https://api.groq.com/openai/v1",
     api_key=os.environ.get("GROQ_API_KEY")
 )
 
-# Selezione sicura del modello compatibile
+# Selezione sicura escludendo i modelli di classificazione/guardia
 try:
     models_response = client.models.list()
     available_models = [m.id for m in models_response.data]
-    versatile_models = [m for m in available_models if "versatile" in m.lower()]
-    if versatile_models:
-        MODEL_NAME = versatile_models[0]
+    print("📌 Modelli disponibili su Groq:", available_models)
+    
+    # Filtriamo via i modelli non idonei al chat completion multiplo
+    chat_models = [
+        m for m in available_models 
+        if not any(x in m.lower() for x in ["guard", "embed", "whisper", "audio", "classification"])
+    ]
+    
+    # Cerca un modello standard di chat
+    preferred = [m for m in chat_models if "llama" in m.lower() or "versatile" in m.lower() or "mixtral" in m.lower() or "gemma" in m.lower()]
+    
+    if preferred:
+        MODEL_NAME = preferred[0]
+    elif chat_models:
+        MODEL_NAME = chat_models[0]
     else:
-        llama_models = [m for m in available_models if "llama" in m.lower()]
-        MODEL_NAME = llama_models[0] if llama_models else available_models[0]
-except Exception:
-    MODEL_NAME = "llama-3.3-70b-versatile"
+        MODEL_NAME = available_models[0]
+        
+    print(f"✅ Modello chat selezionato: {MODEL_NAME}")
+except Exception as e:
+    print(f"⚠️ Errore nel recupero modelli: {e}")
+    MODEL_NAME = "llama3-8b-8192"
 
 KB_PATH = os.path.join(os.path.dirname(__file__), "knowledge_base")
 if not os.path.exists(KB_PATH):
