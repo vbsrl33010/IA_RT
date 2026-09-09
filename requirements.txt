@@ -1,8 +1,5 @@
 flask
 openai
 requests
-llama-index-core
-llama-index-embeddings-huggingface
-sentence-transformers
 pypdf
 gunicorn
