@@ -6,3 +6,4 @@ gunicorn
 streamlit
 requests
 llama-index-core
+pypdf
