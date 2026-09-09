@@ -92,14 +92,14 @@ def chat_endpoint():
     if not user_message:
         return jsonify({"error": "Il parametro 'message' è obbligatorio"}), 400
 
-    _context = vector_search(user_message)retrieved
+    retrieved_context = vector_search(user_message)
 
     system_prompt = (
         "Sei l'assistente virtuale per il supporto tecnico sui registratori di cassa e POS.\n"
         "Fornisci assistenza di I livello aiutando il cliente a risolvere i problemi più semplici.\n\n"
         f"--- CONTESTO TECNICO DAI MANUALI ---\n{retrieved_context}\n-------------------------------------\n\n"
         "REGOLE:\n1. Se è una procedura semplice, spiegalo passo-passo basandoti sul contesto.\n"
-        "2. Se è un guasto bloccante o esaurimento DGFE, chiedi i dati necessari e usa la funzione `create_crm_ticket`."
+        "2. Se è un guasto bloccante o esaurimento DGFE, chiedi i dati necessari e usa la funzione create_crm_ticket."
     )
 
     messages = [{"role": "system", "content": system_prompt}] + session_history + [{"role": "user", "content": user_message}]
