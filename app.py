@@ -40,6 +40,14 @@ def vector_search(query: str) -> str:
         return "Nessun indice disponibile nella base di conoscenza."
     try:
         nodes = retriever.retrieve(query)
+        
+        # --- AGGIUNTA LOG PER DEBUG ---
+        print("--- CHUNK TROVATI DAL RAG ---")
+        for i, node in enumerate(nodes):
+            print(f"Risultato {i+1}: {node.get_content()[:300]}...") # Stampa i primi 300 caratteri
+        print("-----------------------------")
+        # -----------------------------
+
         context_text = "\n\n".join([f"--- Estratto ---\n{node.get_content()}" for node in nodes])
         return context_text if context_text else "Nessuna informazione pertinente trovata nei manuali."
     except Exception as e:
@@ -82,7 +90,7 @@ def chat_endpoint():
     if not user_message:
         return jsonify({"error": "Il parametro 'message' è obbligatorio"}), 400
 
-    retrieved_context = vector_search(user_message)
+    _context = vector_search(user_message)retrieved
 
     system_prompt = (
         "Sei l'assistente virtuale per il supporto tecnico sui registratori di cassa e POS.\n"
