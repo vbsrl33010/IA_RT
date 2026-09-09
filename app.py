@@ -7,7 +7,7 @@ from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 
 app = Flask(__name__)
 
-# Configurazione del client OpenAI per puntare a Groq
+# Configurazione client Groq per il modello di chat
 client = OpenAI(
     base_url="https://api.groq.com/openai/v1",
     api_key=os.environ.get("GROQ_API_KEY")
@@ -15,15 +15,16 @@ client = OpenAI(
 
 MODEL_NAME = "openai/gpt-oss-120b"
 
-# --- CONFIGURAZIONE EMBEDDING LOCALE (Nessuna chiave OpenAI richiesta) ---
-Settings.embed_model = HuggingFaceEmbedding(model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
+# Configurazione embedding locale leggera (ottimizzata per i limiti di RAM di Render)
+Settings.embed_model = HuggingFaceEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2")
+Settings.llm = None 
 
-# --- INIZIALIZZAZIONE RAG (LlamaIndex) ---
+# --- INIZIALIZZAZIONE RAG ---
 KB_PATH = os.path.join(os.path.dirname(__file__), "knowledge_base")
 if not os.path.exists(KB_PATH):
     os.makedirs(KB_PATH)
 
-print("🔍 Indicizzazione dei manuali in corso con modello locale...")
+print("🔍 Indicizzazione dei manuali in corso...")
 retriever = None
 try:
     documents = SimpleDirectoryReader(KB_PATH, recursive=True).load_data()
@@ -35,25 +36,6 @@ try:
         print("Nessun documento trovato nella cartella knowledge_base.")
 except Exception as e:
     print(f"⚠️ Impossibile indicizzare i manuali: {e}")
-
-def vector_search(query: str) -> str:
-    """Esegue una ricerca semantica mirata nei manuali tramite LlamaIndex"""
-    if not retriever:
-        return "Nessun indice disponibile nella base di conoscenza."
-    try:
-        nodes = retriever.retrieve(query)
-        
-        # --- AGGIUNTA LOG PER DEBUG ---
-        print("--- CHUNK TROVATI DAL RAG ---")
-        for i, node in enumerate(nodes):
-            print(f"Risultato {i+1}: {node.get_content()[:300]}...") # Stampa i primi 300 caratteri
-        print("-----------------------------")
-        # -----------------------------
-
-        context_text = "\n\n".join([f"--- Estratto ---\n{node.get_content()}" for node in nodes])
-        return context_text if context_text else "Nessuna informazione pertinente trovata nei manuali."
-    except Exception as e:
-        return f"Errore durante la ricerca nel RAG: {e}"
 
 def create_crm_ticket(ragione_sociale: str, partita_iva: str, matricola_rt: str, descrizione_guasto: str, priorita: str) -> dict:
     return {
