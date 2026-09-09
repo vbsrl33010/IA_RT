@@ -2,7 +2,6 @@ import os
 import json
 from flask import Flask, request, jsonify
 from openai import OpenAI
-from llama_index.core import SimpleDirectoryReader, VectorStoreIndex
 
 app = Flask(__name__)
 
@@ -18,52 +17,41 @@ KB_PATH = os.path.join(os.path.dirname(__file__), "knowledge_base")
 if not os.path.exists(KB_PATH):
     os.makedirs(KB_PATH)
 
-# Variabili globali per l'indice
-_index = None
-_retriever = None
+def load_knowledge_base():
+    """Legge i file dalla knowledge base senza pesanti dipendenze in RAM."""
+    content = ""
+    if not os.path.exists(KB_PATH):
+        return content
+    for root, dirs, files in os.walk(KB_PATH):
+        for file in files:
+            if file.endswith(('.txt', '.md', '.json')):
+                file_path = os.path.join(root, file)
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        content += f"\n\n--- File: {file} ---\n" + f.read()
+                except Exception as e:
+                    print(f"Errore lettura file {file}: {e}")
+    return content
 
-def get_retriever():
-    """Inizializza il modello di embedding e l'indice solo alla prima richiesta (Lazy Loading totale)"""
-    global _index, _retriever
-    if _retriever is not None:
-        return _retriever
-        
-    print("🔍 Caricamento modello embedding e indicizzazione manuali...")
-    try:
-        from llama_index.core import Settings
-        from llama_index.embeddings.huggingface import HuggingFaceEmbedding
-        
-        # Configurazione leggera eseguita solo al bisogno
-        Settings.embed_model = HuggingFaceEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2")
-        Settings.llm = None 
-
-        documents = SimpleDirectoryReader(KB_PATH, recursive=True).load_data()
-        if documents:
-            _index = VectorStoreIndex.from_documents(documents)
-            _retriever = _index.as_retriever(similarity_top_k=3)
-            print(f"Trovati e indicizzati {len(documents)} documenti con successo!")
-        else:
-            print("Nessun documento trovato nella cartella knowledge_base.")
-    except Exception as e:
-        print(f"⚠️ Impossibile inizializzare il RAG: {e}")
-    return _retriever
-
-def vector_search(query: str) -> str:
-    """Esegue una ricerca semantica mirata nei manuali tramite LlamaIndex"""
-    current_retriever = get_retriever()
-    if not current_retriever:
-        return "Nessun indice disponibile nella base di conoscenza."
-    try:
-        nodes = current_retriever.retrieve(query)
-        print("--- CHUNK TROVATI DAL RAG ---")
-        for i, node in enumerate(nodes):
-            print(f"Risultato {i+1}: {node.get_content()[:300]}...")
-        print("-----------------------------")
-        
-        context_text = "\n\n".join([f"--- Estratto ---\n{node.get_content()}" for node in nodes])
-        return context_text if context_text else "Nessuna informazione pertinente trovata nei manuali."
-    except Exception as e:
-        return f"Errore durante la ricerca nel RAG: {e}"
+def lightweight_search(query: str) -> str:
+    """Cerca le sezioni rilevanti nella knowledge base tramite parole chiave."""
+    full_text = load_knowledge_base()
+    if not full_text:
+        return "Nessun documento trovato nella base di conoscenza."
+    
+    paragraphs = full_text.split("\n\n")
+    query_words = set(query.lower().split())
+    
+    scored_paragraphs = []
+    for p in paragraphs:
+        p_lower = p.lower()
+        score = sum(1 for word in query_words if word in p_lower)
+        if score > 0 or len(paragraphs) <= 6:
+            scored_paragraphs.append((score, p))
+            
+    scored_paragraphs.sort(key=lambda x: x[0], reverse=True)
+    top_content = "\n\n".join([p[1] for p in scored_paragraphs[:5]])
+    return top_content if top_content else full_text[:4000]
 
 def create_crm_ticket(ragione_sociale: str, partita_iva: str, matricola_rt: str, descrizione_guasto: str, priorita: str) -> dict:
     return {
@@ -103,7 +91,7 @@ def chat_endpoint():
         if not user_message:
             return jsonify({"error": "Il parametro 'message' è obbligatorio"}), 400
 
-        retrieved_context = vector_search(user_message)
+        retrieved_context = lightweight_search(user_message)
 
         system_prompt = (
             "Sei l'assistente virtuale per il supporto tecnico sui registratori di cassa e POS.\n"
