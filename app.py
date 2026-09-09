@@ -11,24 +11,17 @@ client = OpenAI(
     api_key=os.environ.get("GROQ_API_KEY")
 )
 
-# Tentiamo di recuperare automaticamente un modello valido disponibile per questa chiave API
-# Selezione automatica del modello compatibile con il tool calling
+# Selezione sicura del modello compatibile
 try:
     models_response = client.models.list()
     available_models = [m.id for m in models_response.data]
-    print("📌 Modelli disponibili su Groq:", available_models)
-    
-    # Filtra per modelli che supportano i tool (es. contenenti 'versatile' o 'llama')
     versatile_models = [m for m in available_models if "versatile" in m.lower()]
     if versatile_models:
         MODEL_NAME = versatile_models[0]
     else:
         llama_models = [m for m in available_models if "llama" in m.lower()]
         MODEL_NAME = llama_models[0] if llama_models else available_models[0]
-        
-    print(f"✅ Modello selezionato: {MODEL_NAME}")
-except Exception as e:
-    print(f"⚠️ Errore nel recupero dei modelli: {e}")
+except Exception:
     MODEL_NAME = "llama-3.3-70b-versatile"
 
 KB_PATH = os.path.join(os.path.dirname(__file__), "knowledge_base")
@@ -36,7 +29,6 @@ if not os.path.exists(KB_PATH):
     os.makedirs(KB_PATH)
 
 def load_knowledge_base():
-    """Legge i file dalla knowledge base senza pesanti dipendenze in RAM."""
     content = ""
     if not os.path.exists(KB_PATH):
         return content
@@ -52,7 +44,6 @@ def load_knowledge_base():
     return content
 
 def lightweight_search(query: str) -> str:
-    """Cerca le sezioni rilevanti nella knowledge base tramite parole chiave."""
     full_text = load_knowledge_base()
     if not full_text:
         return "Nessun documento trovato nella base di conoscenza."
@@ -71,34 +62,6 @@ def lightweight_search(query: str) -> str:
     top_content = "\n\n".join([p[1] for p in scored_paragraphs[:5]])
     return top_content if top_content else full_text[:4000]
 
-def create_crm_ticket(ragione_sociale: str, partita_iva: str, matricola_rt: str, descrizione_guasto: str, priorita: str) -> dict:
-    return {
-        "status": "success",
-        "ticket_id": "TK-GROQ-001",
-        "message": f"Ticket registrato per {ragione_sociale} (Matricola RT: {matricola_rt})."
-    }
-
-tools = [
-    {
-        "type": "function",
-        "function": {
-            "name": "create_crm_ticket",
-            "description": "Apre un ticket di assistenza sul CRM in caso di guasto hardware, blocco fiscale o richiesta di intervento.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "ragione_sociale": {"type": "string", "description": "Nome dell'attività"},
-                    "partita_iva": {"type": "string", "description": "Partita IVA o Codice Fiscale"},
-                    "matricola_rt": {"type": "string", "description": "Matricola del registratore telematico/POS"},
-                    "descrizione_guasto": {"type": "string", "description": "Sintesi del problema riscontrato"},
-                    "priorita": {"type": "string", "enum": ["BASSA", "MEDIA", "ALTA", "URGENTE_CASSA_BLOCCATA"], "description": "Urgenza"}
-                },
-                "required": ["ragione_sociale", "matricola_rt", "descrizione_guasto", "priorita"]
-            }
-        }
-    }
-]
-
 @app.route("/api/v1/chat", methods=["POST"])
 def chat_endpoint():
     try:
@@ -116,39 +79,20 @@ def chat_endpoint():
             "Fornisci assistenza di I livello aiutando il cliente a risolvere i problemi più semplici.\n\n"
             f"--- CONTESTO TECNICO DAI MANUALI ---\n{retrieved_context}\n-------------------------------------\n\n"
             "REGOLE:\n1. Se è una procedura semplice, spiegalo passo-passo basandoti sul contesto.\n"
-            "2. Se è un guasto bloccante o esaurimento DGFE, chiedi i dati necessari e usa la funzione create_crm_ticket."
+            "2. Se è un guasto bloccante o esaurimento DGFE, chiedi i dati necessari."
         )
 
         messages = [{"role": "system", "content": system_prompt}] + session_history + [{"role": "user", "content": user_message}]
 
-          response = client.chat.completions.create(
+        response = client.chat.completions.create(
             model=MODEL_NAME,
             messages=messages,
             temperature=0.7
         )
 
-        response_message = response.choices[0].message
-
-        if response_message.tool_calls:
-            for tool_call in response_message.tool_calls:
-                if tool_call.function.name == "create_crm_ticket":
-                    args = json.loads(tool_call.function.arguments)
-                    ticket_res = create_crm_ticket(
-                        ragione_sociale=args.get("ragione_sociale"),
-                        partita_iva=args.get("partita_iva", "N/D"),
-                        matricola_rt=args.get("matricola_rt"),
-                        descrizione_guasto=args.get("descrizione_guasto"),
-                        priorita=args.get("priorita", "MEDIA")
-                    )
-                    return jsonify({
-                        "type": "ticket_escalation",
-                        "reply": f"Richiesta inoltrata al reparto tecnico. Codice Ticket: {ticket_res.get('ticket_id')}.",
-                        "ticket_data": ticket_res
-                    })
-
         return jsonify({
             "type": "standard_response",
-            "reply": response_message.content
+            "reply": response.choices[0].message.content
         })
         
     except Exception as e:
